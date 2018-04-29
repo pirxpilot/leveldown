@@ -57,6 +57,7 @@
     "verify-travis-appveyor": "^2.0.0"
   },
   "scripts": {
+    "install": "cmake-js compile",
     "test": "tape test/*-test.js | faucet"
   },
   "license": "MIT",
