@@ -46,8 +46,28 @@ include_directories(
 )
 
 # Build a shared library named after the project from the files in `src/`
-file(GLOB SOURCE_FILES "src/*.cc" "src/*.h")
-add_library(${PROJECT_NAME} SHARED ${SOURCE_FILES})
+add_library(${PROJECT_NAME} SHARED)
+target_sources(${PROJECT_NAME}
+  PRIVATE
+    "${PROJECT_SOURCE_DIR}/src/batch.h"
+    "${PROJECT_SOURCE_DIR}/src/batch_async.cc"
+    "${PROJECT_SOURCE_DIR}/src/batch.cc"
+    "${PROJECT_SOURCE_DIR}/src/leveldown_async.h"
+    "${PROJECT_SOURCE_DIR}/src/iterator_async.cc"
+    "${PROJECT_SOURCE_DIR}/src/database.cc"
+    "${PROJECT_SOURCE_DIR}/src/database.h"
+    "${PROJECT_SOURCE_DIR}/src/database_async.cc"
+    "${PROJECT_SOURCE_DIR}/src/leveldown_async.cc"
+    "${PROJECT_SOURCE_DIR}/src/database_async.h"
+    "${PROJECT_SOURCE_DIR}/src/batch_async.h"
+    "${PROJECT_SOURCE_DIR}/src/iterator.h"
+    "${PROJECT_SOURCE_DIR}/src/leveldown.h"
+    "${PROJECT_SOURCE_DIR}/src/common.h"
+    "${PROJECT_SOURCE_DIR}/src/async.h"
+    "${PROJECT_SOURCE_DIR}/src/iterator.cc"
+    "${PROJECT_SOURCE_DIR}/src/iterator_async.h"
+    "${PROJECT_SOURCE_DIR}/src/leveldown.cc"
+)
 
 # Gives our library file a .node extension without any "lib" prefix
 set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "" SUFFIX ".node")
