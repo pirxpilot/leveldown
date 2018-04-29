@@ -1,0 +1,9 @@
+[submodule "lib/snappy"]
+	path = lib/snappy
+	url = https://github.com/google/snappy.git
+[submodule "lib/leveldb"]
+	path = lib/leveldb
+	url = https://github.com/google/leveldb.git
+[submodule "lib/crc32c"]
+	path = lib/crc32c
+	url = https://github.com/google/crc32c.git
