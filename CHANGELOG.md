@@ -1,6 +1,10 @@
-# Changelog
 
-## [Unreleased]
+3.0.2 / 2018-04-28
+==================
+
+ * add crc32c, leveldb and snappy dependencies as submodules
+ * add cmake-js to build binary dependencies
+ * rename to @pirxpilot/leveldown
 
 ## [3.0.1] - 2018-04-26
 
