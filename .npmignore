@@ -3,14 +3,11 @@ build/
 build-pre-gyp/
 test-data.tar
 test-data.db.tar
-deps/leveldb/leveldb-basho/
-deps/leveldb/leveldb-hyper/
-deps/leveldb/leveldb-rocksdb/
-deps/snappy/snappy-*/testdata/
-leakydb
+lib/leveldb/doc/
+lib/snappy/testdata/
 bench/
 test/
-deps/leveldb/leveldb-*/doc/
+yarn.lock
 README
 INSTALL
 NEWS
