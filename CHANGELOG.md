@@ -1,4 +1,10 @@
 
+3.0.3 / 2018-04-30
+==================
+
+ * re-add prebuild-install to install prebuild targets
+ * replace cmake with @pirxpilot/cmake
+
 3.0.2 / 2018-04-28
 ==================
 
