@@ -32,11 +32,12 @@
   "main": "leveldown.js",
   "typings": "leveldown.d.ts",
   "dependencies": {
+    "@pirxpilot/cmake-js": "^4.0.1",
     "abstract-leveldown": "~4.0.0",
     "bindings": "~1.3.0",
-    "cmake-js": "^3.6.2",
     "fast-future": "~1.0.2",
-    "nan": "~2.10.0"
+    "nan": "~2.10.0",
+    "prebuild-install": "^2.5.3"
   },
   "devDependencies": {
     "@types/node": "^8.0.31",
@@ -57,7 +58,7 @@
     "verify-travis-appveyor": "^2.0.0"
   },
   "scripts": {
-    "install": "cmake-js compile",
+    "install": "prebuild-install || cmake-js compile",
     "test": "tape test/*-test.js | faucet"
   },
   "license": "MIT",
