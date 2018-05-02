@@ -28,6 +28,26 @@ add_subdirectory(lib/snappy)
 
 set_target_properties(snappy PROPERTIES COMPILE_FLAGS "-fPIC -fno-builtin-memcmp")
 
+# tcmalloc
+
+find_program(MAKE NAMES gmake nmake make)
+include(ExternalProject)
+ExternalProject_Add(tcmalloc
+  PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/lib/gperftools
+  CONFIGURE_COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/gperftools/configure
+    --prefix=${CMAKE_CURRENT_BINARY_DIR}
+    --disable-heap-checker
+    --disable-heap-profiler
+    --disable-dependency-tracking
+    --disable-debugalloc
+    --disable-cpu-profiler
+    --with-pic
+  BUILD_COMMAND ${MAKE}
+  BUILD_IN_SOURCE 1
+)
+
+set(HAVE_TCMALLOC ON CACHE BOOL "tcmalloc is build also")
+
 # leveldb
 
 set(LEVELDB_BUILD_TESTS OFF CACHE BOOL "do not build benchmarks")
