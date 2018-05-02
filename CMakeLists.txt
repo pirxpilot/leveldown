@@ -30,23 +30,34 @@ set_target_properties(snappy PROPERTIES COMPILE_FLAGS "-fPIC -fno-builtin-memcmp
 
 # tcmalloc
 
-find_program(MAKE NAMES gmake nmake make)
 include(ExternalProject)
-ExternalProject_Add(tcmalloc
-  PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/lib/gperftools
-  CONFIGURE_COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/gperftools/configure
-    --prefix=${CMAKE_CURRENT_BINARY_DIR}
+
+ExternalProject_Add(gperftools
+  GIT_REPOSITORY https://github.com/gperftools/gperftools.git
+  GIT_TAG gperftools-2.7
+  UPDATE_COMMAND autoreconf --install --force
+  CONFIGURE_COMMAND <SOURCE_DIR>/configure
+    --prefix=<INSTALL_DIR>
     --disable-heap-checker
     --disable-heap-profiler
     --disable-dependency-tracking
     --disable-debugalloc
     --disable-cpu-profiler
+    --disable-shared
     --with-pic
-  BUILD_COMMAND ${MAKE}
-  BUILD_IN_SOURCE 1
+  BUILD_COMMAND make
+  INSTALL_COMMAND make install
 )
 
-set(HAVE_TCMALLOC ON CACHE BOOL "tcmalloc is build also")
+ExternalProject_Get_Property(gperftools INSTALL_DIR)
+
+add_library(tcmalloc STATIC IMPORTED)
+set_property(TARGET tcmalloc PROPERTY IMPORTED_LOCATION ${INSTALL_DIR}/lib/libtcmalloc_minimal.a)
+
+add_dependencies(tcmalloc gperftools)
+
+set(HAVE_TCMALLOC ON CACHE BOOL "tcmalloc is being built here")
+
 
 # leveldb
 
