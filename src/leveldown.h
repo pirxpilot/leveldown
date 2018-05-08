@@ -43,6 +43,17 @@ static inline void DisposeStringOrBufferFromSlice(
     delete[] slice.data();
 }
 
+static inline leveldb::Slice MakeSlice(v8::Local<v8::Value> from) {
+  if (from->IsNull() || from->IsUndefined()) return leveldb::Slice();
+
+  v8::Local<v8::Object> o = from->ToObject();
+  char* data = node::Buffer::Data(o);
+  size_t size = node::Buffer::Length(o);
+
+  return leveldb::Slice(data, size);
+}
+
+
 // NOTE: must call DisposeStringOrBufferFromSlice() on objects created here
 #define LD_STRING_OR_BUFFER_TO_SLICE(to, from, name)                           \
   size_t to ## Sz_;                                                            \
