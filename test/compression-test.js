@@ -82,7 +82,7 @@ test('Compression', function (t) {
       t.error(err)
       db.batch(
           Array.apply(null, Array(multiples)).map(function (e, i) {
-            return { type: 'put', key: i, value: compressableData }
+            return { type: 'put', key: Buffer.from(i), value: compressableData }
           })
         , cycle.bind(null, db, false, t, delayed.delayed(verify.bind(null, db.location, false, t), 0.01))
       )

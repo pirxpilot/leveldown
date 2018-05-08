@@ -28,9 +28,9 @@ function makeTest (name, testFn) {
       db.open(function (err) {
         t.error(err, 'no error from open()')
         db.batch([
-          { type: 'put', key: 'one', value: '1' },
-          { type: 'put', key: 'two', value: '2' },
-          { type: 'put', key: 'three', value: '3' }
+          { type: 'put', key: Buffer.from('one'), value: Buffer.from('1') },
+          { type: 'put', key: Buffer.from('two'), value: Buffer.from('2') },
+          { type: 'put', key: Buffer.from('three'), value: Buffer.from('3') }
         ], function (err) {
           t.error(err, 'no error from batch()')
           testFn(db, t, done, location)
