@@ -79,7 +79,7 @@ uint64_t Database::ApproximateSizeFromDatabase (const leveldb::Range* range) {
   return size;
 }
 
-void Database::CompactRangeFromDatabase (const leveldb::Slice* start, 
+void Database::CompactRangeFromDatabase (const leveldb::Slice* start,
                                          const leveldb::Slice* end) {
   db->CompactRange(start, end);
 }
@@ -278,21 +278,17 @@ NAN_METHOD(Database::Close) {
 NAN_METHOD(Database::Put) {
   LD_METHOD_SETUP_COMMON(put, 2, 3)
 
-  v8::Local<v8::Object> keyHandle = info[0].As<v8::Object>();
-  v8::Local<v8::Object> valueHandle = info[1].As<v8::Object>();
-  LD_STRING_OR_BUFFER_TO_SLICE(key, keyHandle, key);
-  LD_STRING_OR_BUFFER_TO_SLICE(value, valueHandle, value);
+  leveldb::Slice key = MakeSlice(info[0].As<v8::Object>());
+  leveldb::Slice value = MakeSlice(info[1].As<v8::Object>());
 
   bool sync = BooleanOptionValue(optionsObj, "sync");
 
-  WriteWorker* worker  = new WriteWorker(
+  WriteWorker* worker = new WriteWorker(
       database
     , new Nan::Callback(callback)
     , key
     , value
     , sync
-    , keyHandle
-    , valueHandle
   );
 
   // persist to prevent accidental GC
@@ -304,8 +300,7 @@ NAN_METHOD(Database::Put) {
 NAN_METHOD(Database::Get) {
   LD_METHOD_SETUP_COMMON(get, 1, 2)
 
-  v8::Local<v8::Object> keyHandle = info[0].As<v8::Object>();
-  LD_STRING_OR_BUFFER_TO_SLICE(key, keyHandle, key);
+  leveldb::Slice key = MakeSlice(info[0].As<v8::Object>());
 
   bool asBuffer = BooleanOptionValue(optionsObj, "asBuffer", true);
   bool fillCache = BooleanOptionValue(optionsObj, "fillCache", true);
@@ -316,7 +311,6 @@ NAN_METHOD(Database::Get) {
     , key
     , asBuffer
     , fillCache
-    , keyHandle
   );
   // persist to prevent accidental GC
   v8::Local<v8::Object> _this = info.This();
@@ -327,8 +321,7 @@ NAN_METHOD(Database::Get) {
 NAN_METHOD(Database::Delete) {
   LD_METHOD_SETUP_COMMON(del, 1, 2)
 
-  v8::Local<v8::Object> keyHandle = info[0].As<v8::Object>();
-  LD_STRING_OR_BUFFER_TO_SLICE(key, keyHandle, key);
+  leveldb::Slice key = MakeSlice(info[0].As<v8::Object>());
 
   bool sync = BooleanOptionValue(optionsObj, "sync");
 
@@ -337,7 +330,6 @@ NAN_METHOD(Database::Delete) {
     , new Nan::Callback(callback)
     , key
     , sync
-    , keyHandle
   );
   // persist to prevent accidental GC
   v8::Local<v8::Object> _this = info.This();
@@ -373,24 +365,20 @@ NAN_METHOD(Database::Batch) {
     v8::Local<v8::Value> type = obj->Get(Nan::New("type").ToLocalChecked());
 
     if (type->StrictEquals(Nan::New("del").ToLocalChecked())) {
-      LD_STRING_OR_BUFFER_TO_SLICE(key, keyBuffer, key)
+      leveldb::Slice key = MakeSlice(keyBuffer);
 
       batch->Delete(key);
       if (!hasData)
         hasData = true;
-
-      DisposeStringOrBufferFromSlice(keyBuffer, key);
     } else if (type->StrictEquals(Nan::New("put").ToLocalChecked())) {
       v8::Local<v8::Value> valueBuffer = obj->Get(Nan::New("value").ToLocalChecked());
 
-      LD_STRING_OR_BUFFER_TO_SLICE(key, keyBuffer, key)
-      LD_STRING_OR_BUFFER_TO_SLICE(value, valueBuffer, value)
+      leveldb::Slice key = MakeSlice(keyBuffer);
+      leveldb::Slice value = MakeSlice(valueBuffer);
+
       batch->Put(key, value);
       if (!hasData)
         hasData = true;
-
-      DisposeStringOrBufferFromSlice(keyBuffer, key);
-      DisposeStringOrBufferFromSlice(valueBuffer, value);
     }
   }
 
@@ -412,21 +400,16 @@ NAN_METHOD(Database::Batch) {
 }
 
 NAN_METHOD(Database::ApproximateSize) {
-  v8::Local<v8::Object> startHandle = info[0].As<v8::Object>();
-  v8::Local<v8::Object> endHandle = info[1].As<v8::Object>();
+  leveldb::Slice start = MakeSlice(info[0].As<v8::Object>());
+  leveldb::Slice end = MakeSlice(info[1].As<v8::Object>());
 
   LD_METHOD_SETUP_COMMON(approximateSize, -1, 2)
-
-  LD_STRING_OR_BUFFER_TO_SLICE(start, startHandle, start)
-  LD_STRING_OR_BUFFER_TO_SLICE(end, endHandle, end)
 
   ApproximateSizeWorker* worker  = new ApproximateSizeWorker(
       database
     , new Nan::Callback(callback)
     , start
     , end
-    , startHandle
-    , endHandle
   );
   // persist to prevent accidental GC
   v8::Local<v8::Object> _this = info.This();
@@ -435,20 +418,16 @@ NAN_METHOD(Database::ApproximateSize) {
 }
 
 NAN_METHOD(Database::CompactRange) {
-  v8::Local<v8::Object> startHandle = info[0].As<v8::Object>();
-  v8::Local<v8::Object> endHandle = info[1].As<v8::Object>();
+  leveldb::Slice start = MakeSlice(info[0].As<v8::Object>());
+  leveldb::Slice end = MakeSlice(info[1].As<v8::Object>());
 
   LD_METHOD_SETUP_COMMON(compactRange, -1, 2)
-  LD_STRING_OR_BUFFER_TO_SLICE(start, startHandle, start)
-  LD_STRING_OR_BUFFER_TO_SLICE(end, endHandle, end)
 
   CompactRangeWorker* worker  = new CompactRangeWorker(
       database
     , new Nan::Callback(callback)
     , start
     , end
-    , startHandle
-    , endHandle
   );
   // persist to prevent accidental GC
   v8::Local<v8::Object> _this = info.This();
@@ -457,11 +436,7 @@ NAN_METHOD(Database::CompactRange) {
 }
 
 NAN_METHOD(Database::GetProperty) {
-  v8::Local<v8::Value> propertyHandle = info[0].As<v8::Object>();
-  v8::Local<v8::Function> callback; // for LD_STRING_OR_BUFFER_TO_SLICE
-
-  LD_STRING_OR_BUFFER_TO_SLICE(property, propertyHandle, property)
-
+  leveldb::Slice property = MakeSliceFromString(info[0].As<v8::Object>());
   leveldown::Database* database =
       Nan::ObjectWrap::Unwrap<leveldown::Database>(info.This());
 

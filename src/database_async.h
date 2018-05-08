@@ -51,11 +51,9 @@ public:
   IOWorker(Database *database,
            Nan::Callback *callback,
            const char *resource_name,
-           leveldb::Slice key,
-           v8::Local<v8::Object> &keyHandle);
+           leveldb::Slice key);
 
   virtual ~IOWorker() {}
-  virtual void WorkComplete();
 
 protected:
   leveldb::Slice key;
@@ -67,8 +65,7 @@ public:
              Nan::Callback *callback,
              leveldb::Slice key,
              bool asBuffer,
-             bool fillCache,
-             v8::Local<v8::Object> &keyHandle);
+             bool fillCache);
 
   virtual ~ReadWorker();
   virtual void Execute();
@@ -86,7 +83,6 @@ public:
                Nan::Callback *callback,
                leveldb::Slice key,
                bool sync,
-               v8::Local<v8::Object> &keyHandle,
                const char *resource_name = "leveldown:db.del");
 
   virtual ~DeleteWorker();
@@ -102,13 +98,10 @@ public:
               Nan::Callback *callback,
               leveldb::Slice key,
               leveldb::Slice value,
-              bool sync,
-              v8::Local<v8::Object> &keyHandle,
-              v8::Local<v8::Object> &valueHandle);
+              bool sync);
 
   virtual ~WriteWorker() {}
   virtual void Execute();
-  virtual void WorkComplete();
 
 private:
   leveldb::Slice value;
@@ -134,14 +127,11 @@ public:
   ApproximateSizeWorker(Database *database,
                         Nan::Callback *callback,
                         leveldb::Slice start,
-                        leveldb::Slice end,
-                        v8::Local<v8::Object> &startHandle,
-                        v8::Local<v8::Object> &endHandle);
+                        leveldb::Slice end);
 
   virtual ~ApproximateSizeWorker() {}
   virtual void Execute();
   virtual void HandleOKCallback();
-  virtual void WorkComplete();
 
   private:
     leveldb::Range range;
@@ -153,14 +143,11 @@ public:
   CompactRangeWorker(Database *database,
                      Nan::Callback *callback,
                      leveldb::Slice start,
-                     leveldb::Slice end,
-                     v8::Local<v8::Object> &startHandle,
-                     v8::Local<v8::Object> &endHandle);
+                     leveldb::Slice end);
 
   virtual ~CompactRangeWorker() {}
   virtual void Execute();
   virtual void HandleOKCallback();
-  virtual void WorkComplete();
 
   private:
     leveldb::Slice rangeStart;

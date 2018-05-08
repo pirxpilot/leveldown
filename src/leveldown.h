@@ -19,30 +19,6 @@ static inline size_t StringOrBufferLength(v8::Local<v8::Value> obj) {
     : obj->ToString()->Utf8Length();
 }
 
-// NOTE: this MUST be called on objects created by
-// LD_STRING_OR_BUFFER_TO_SLICE
-static inline void DisposeStringOrBufferFromSlice(
-        Nan::Persistent<v8::Object> &handle
-      , leveldb::Slice slice) {
-  Nan::HandleScope scope;
-
-  if (!slice.empty()) {
-    v8::Local<v8::Value> obj = Nan::New<v8::Object>(handle)->Get(Nan::New<v8::String>("obj").ToLocalChecked());
-    if (!node::Buffer::HasInstance(obj))
-      delete[] slice.data();
-  }
-
-  handle.Reset();
-}
-
-static inline void DisposeStringOrBufferFromSlice(
-        v8::Local<v8::Value> handle
-      , leveldb::Slice slice) {
-
-  if (!slice.empty() && !node::Buffer::HasInstance(handle))
-    delete[] slice.data();
-}
-
 static inline leveldb::Slice MakeSlice(v8::Local<v8::Value> from) {
   if (from->IsNull() || from->IsUndefined()) return leveldb::Slice();
 
@@ -53,29 +29,14 @@ static inline leveldb::Slice MakeSlice(v8::Local<v8::Value> from) {
   return leveldb::Slice(data, size);
 }
 
+static inline leveldb::Slice MakeSliceFromString(v8::Local<v8::Value> from) {
+  v8::Local<v8::String> str = from->ToString();
+  size_t size = str->Utf8Length();
+  char* data = new char[size];
+  str->WriteUtf8(data, -1, NULL, v8::String::NO_NULL_TERMINATION);
 
-// NOTE: must call DisposeStringOrBufferFromSlice() on objects created here
-#define LD_STRING_OR_BUFFER_TO_SLICE(to, from, name)                           \
-  size_t to ## Sz_;                                                            \
-  char* to ## Ch_;                                                             \
-  if (from->IsNull() || from->IsUndefined()) {                                 \
-    to ## Sz_ = 0;                                                             \
-    to ## Ch_ = 0;                                                             \
-  } else if (!from->ToObject().IsEmpty()                                       \
-      && node::Buffer::HasInstance(from->ToObject())) {                        \
-    to ## Sz_ = node::Buffer::Length(from->ToObject());                        \
-    to ## Ch_ = node::Buffer::Data(from->ToObject());                          \
-  } else {                                                                     \
-    v8::Local<v8::String> to ## Str = from->ToString();                        \
-    to ## Sz_ = to ## Str->Utf8Length();                                       \
-    to ## Ch_ = new char[to ## Sz_];                                           \
-    to ## Str->WriteUtf8(                                                      \
-        to ## Ch_                                                              \
-      , -1                                                                     \
-      , NULL, v8::String::NO_NULL_TERMINATION                                  \
-    );                                                                         \
-  }                                                                            \
-  leveldb::Slice to(to ## Ch_, to ## Sz_);
+  return leveldb::Slice(data, size);
+}
 
 #define LD_STRING_OR_BUFFER_TO_COPY(to, from, name)                            \
   size_t to ## Sz_;                                                            \
