@@ -49,6 +49,11 @@ public:
     , leveldb::Slice key
     , std::string& value
   );
+  leveldb::Status GetManyFromDatabase (
+      const leveldb::ReadOptions &options
+    , const std::vector<leveldb::Slice> &keys
+    , std::vector<std::string> &values
+  );
   leveldb::Status DeleteFromDatabase (
       const leveldb::WriteOptions& options
     , leveldb::Slice key
@@ -87,6 +92,7 @@ private:
   static NAN_METHOD(Put);
   static NAN_METHOD(Delete);
   static NAN_METHOD(Get);
+  static NAN_METHOD(GetMany);
   static NAN_METHOD(Batch);
   static NAN_METHOD(Write);
   static NAN_METHOD(Iterator);
