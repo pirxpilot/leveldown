@@ -56,6 +56,20 @@ leveldb::Status Database::GetFromDatabase (
   return db->Get(options, key, &value);
 }
 
+leveldb::Status Database::GetManyFromDatabase (
+    const leveldb::ReadOptions &options
+  , const std::vector<leveldb::Slice> &keys
+  , std::vector<std::string> &values
+) {
+
+  for (size_t i = 0; i < keys.size(); i++) {
+    auto status = db->Get(options, keys[i], &values[i]);
+    if (!status.ok()) return status;
+  }
+
+  return leveldb::Status::OK();
+}
+
 leveldb::Status Database::DeleteFromDatabase (
         const leveldb::WriteOptions& options
       , leveldb::Slice key
@@ -135,6 +149,7 @@ void Database::Init () {
   Nan::SetPrototypeMethod(tpl, "close", Database::Close);
   Nan::SetPrototypeMethod(tpl, "put", Database::Put);
   Nan::SetPrototypeMethod(tpl, "get", Database::Get);
+  Nan::SetPrototypeMethod(tpl, "getMany", Database::GetMany);
   Nan::SetPrototypeMethod(tpl, "del", Database::Delete);
   Nan::SetPrototypeMethod(tpl, "batch", Database::Batch);
   Nan::SetPrototypeMethod(tpl, "approximateSize", Database::ApproximateSize);
@@ -304,6 +319,31 @@ NAN_METHOD(Database::Get) {
   );
   // persist to prevent accidental GC
   v8::Local<v8::Object> _this = info.This();
+  worker->SaveToPersistent("database", _this);
+  Nan::AsyncQueueWorker(worker);
+}
+
+NAN_METHOD(Database::GetMany) {
+  LD_METHOD_SETUP_COMMON(get, 1, 2)
+
+  auto array = v8::Local<v8::Array>::Cast(info[0]);
+  const auto len = array->Length();
+
+  std::vector<leveldb::Slice> keys;
+  keys.reserve(len);
+
+  for(auto i = 0; i < len; i++) {
+    auto obj = v8::Local<v8::Object>::Cast(array->Get(i));
+    keys.push_back(MakeSlice(obj));
+  }
+
+  auto worker = new ReadManyWorker(
+      database
+    , new Nan::Callback(callback)
+    , std::move(keys)
+  );
+  // persist to prevent accidental GC
+  auto _this = info.This();
   worker->SaveToPersistent("database", _this);
   Nan::AsyncQueueWorker(worker);
 }

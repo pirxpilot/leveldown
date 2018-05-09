@@ -37,6 +37,16 @@ LevelDOWN.prototype._get = function (key, options, callback) {
   this.binding.get(key, options, callback)
 }
 
+LevelDOWN.prototype.getMany = function (keys, options, callback) {
+  if (typeof options === 'function') { callback = options }
+
+  if (typeof callback !== 'function') {
+    throw new Error('open() requires a callback argument')
+  }
+
+  this.binding.getMany(keys, options, callback);
+}
+
 
 LevelDOWN.prototype._del = function (key, options, callback) {
   this.binding.del(key, options, callback)

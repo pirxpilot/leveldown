@@ -113,6 +113,39 @@ void ReadWorker::HandleOKCallback() {
   callback->Call(2, argv, async_resource);
 }
 
+/** READ MANY WORKER */
+
+ReadManyWorker::ReadManyWorker(
+  Database *database,
+  Nan::Callback *callback,
+  std::vector<leveldb::Slice> &&keys
+):
+  AsyncWorker(database, callback, "leveldown:db.getMany"),
+  keys(keys),
+  values(keys.size())
+{
+  options.fill_cache = true;
+};
+
+void ReadManyWorker::Execute() {
+  SetStatus(database->GetManyFromDatabase(options, keys, values));
+}
+
+void ReadManyWorker::HandleOKCallback() {
+  Nan::HandleScope scope;
+
+  auto array = Nan::New<v8::Array>(values.size());
+
+  for (int i = 0; i < values.size(); i++) {
+    auto value = values[i];
+    auto buffer = Nan::CopyBuffer(value.data(), value.size()).ToLocalChecked();
+    Nan::Set(array, i, buffer);
+  }
+
+  v8::Local<v8::Value> argv[] = { Nan::Null(), array };
+  callback->Call(2, argv, async_resource);
+}
+
 /** DELETE WORKER **/
 
 DeleteWorker::DeleteWorker(Database *database,

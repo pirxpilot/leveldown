@@ -72,6 +72,21 @@ private:
   std::string value;
 };
 
+class ReadManyWorker : public AsyncWorker {
+public:
+  ReadManyWorker(Database *database,
+                 Nan::Callback *callback,
+                 std::vector<leveldb::Slice> &&keys);
+
+  virtual void Execute();
+  virtual void HandleOKCallback();
+
+private:
+  leveldb::ReadOptions options;
+  const std::vector<leveldb::Slice> keys;
+  std::vector<std::string> values;
+};
+
 class DeleteWorker : public IOWorker {
 public:
   DeleteWorker(Database *database,
