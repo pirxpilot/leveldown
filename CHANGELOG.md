@@ -1,4 +1,12 @@
 
+3.1.0 / 2018-05-09
+==================
+
+ * add Database::PutMany - database.putMany in JS
+ * add Database::GetMany - database.getMany in JS
+ * update to use C++11
+ * breaking: only buffers are supported as keys and values
+
 3.0.3 / 2018-04-30
 ==================
 
