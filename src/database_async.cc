@@ -115,18 +115,6 @@ void ReadWorker::HandleOKCallback() {
 
 /** READ MANY WORKER */
 
-ReadManyWorker::ReadManyWorker(
-  Database *database,
-  Nan::Callback *callback,
-  std::vector<leveldb::Slice> &&keys
-):
-  AsyncWorker(database, callback, "leveldown:db.getMany"),
-  keys(keys),
-  values(keys.size())
-{
-  options.fill_cache = true;
-};
-
 void ReadManyWorker::Execute() {
   SetStatus(database->GetManyFromDatabase(options, keys, values));
 }
