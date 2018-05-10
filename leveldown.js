@@ -33,6 +33,11 @@ LevelDOWN.prototype._put = function (key, value, options, callback) {
 }
 
 
+LevelDOWN.prototype.putMany = function (keysAndValues, options, callback) {
+  this.binding.putMany(keysAndValues, options, callback)
+}
+
+
 LevelDOWN.prototype._get = function (key, options, callback) {
   this.binding.get(key, options, callback)
 }
