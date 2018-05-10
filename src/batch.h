@@ -19,13 +19,12 @@ public:
   );
 
   Batch  (leveldown::Database* database, bool sync);
-  ~Batch ();
   leveldb::Status Write ();
 
 private:
   leveldown::Database* database;
-  leveldb::WriteOptions* options;
-  leveldb::WriteBatch* batch;
+  leveldb::WriteOptions options;
+  leveldb::WriteBatch batch;
   bool hasData; // keep track of whether we're writing data or not
 
   static NAN_METHOD(New);

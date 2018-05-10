@@ -12,19 +12,12 @@ namespace leveldown {
 static Nan::Persistent<v8::FunctionTemplate> batch_constructor;
 
 Batch::Batch (leveldown::Database* database, bool sync) : database(database) {
-  options = new leveldb::WriteOptions();
-  options->sync = sync;
-  batch = new leveldb::WriteBatch();
+  options.sync = sync;
   hasData = false;
 }
 
-Batch::~Batch () {
-  delete options;
-  delete batch;
-}
-
 leveldb::Status Batch::Write () {
-  return database->WriteBatchToDatabase(options, batch);
+  return database->WriteBatchToDatabase(options, &batch);
 }
 
 void Batch::Init () {
@@ -89,7 +82,7 @@ NAN_METHOD(Batch::Put) {
   leveldb::Slice key = MakeSlice(info[0]);
   leveldb::Slice value = MakeSlice(info[1]);
 
-  batch->batch->Put(key, value);
+  batch->batch.Put(key, value);
   if (!batch->hasData)
     batch->hasData = true;
 
@@ -103,7 +96,7 @@ NAN_METHOD(Batch::Del) {
 
   leveldb::Slice key = MakeSlice(info[0]);
 
-  batch->batch->Delete(key);
+  batch->batch.Delete(key);
   if (!batch->hasData)
     batch->hasData = true;
 
@@ -113,7 +106,7 @@ NAN_METHOD(Batch::Del) {
 NAN_METHOD(Batch::Clear) {
   Batch* batch = ObjectWrap::Unwrap<Batch>(info.Holder());
 
-  batch->batch->Clear();
+  batch->batch.Clear();
   batch->hasData = false;
 
   info.GetReturnValue().Set(info.Holder());

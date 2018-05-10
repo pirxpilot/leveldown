@@ -22,55 +22,52 @@ namespace leveldown {
 static Nan::Persistent<v8::FunctionTemplate> database_constructor;
 
 Database::Database (const v8::Local<v8::Value>& from)
-  : location(new Nan::Utf8String(from))
-  , db(NULL)
+  : location(*Nan::Utf8String(from))
+    // strange because - inexplicably - *operator is defined by Utf8String to cast to 'const char*'
   , currentIteratorId(0)
-  , pendingCloseWorker(NULL)
-  , blockCache(NULL)
-  , filterPolicy(NULL) {};
-
-Database::~Database () {
-  if (db != NULL)
-    delete db;
-  delete location;
-};
+  , pendingCloseWorker(nullptr)
+{};
 
 /* Calls from worker threads, NO V8 HERE *****************************/
 
 leveldb::Status Database::OpenDatabase (
-        leveldb::Options* options
+        const leveldb::Options& options
     ) {
-  return leveldb::DB::Open(*options, **location, &db);
+
+  leveldb::DB* pdb;
+  auto status = leveldb::DB::Open(options, location, &pdb);
+  db.reset(pdb);
+  return status;
 }
 
 leveldb::Status Database::PutToDatabase (
-        leveldb::WriteOptions* options
+        const leveldb::WriteOptions& options
       , leveldb::Slice key
       , leveldb::Slice value
     ) {
-  return db->Put(*options, key, value);
+  return db->Put(options, key, value);
 }
 
 leveldb::Status Database::GetFromDatabase (
-        leveldb::ReadOptions* options
+        const leveldb::ReadOptions& options
       , leveldb::Slice key
       , std::string& value
     ) {
-  return db->Get(*options, key, &value);
+  return db->Get(options, key, &value);
 }
 
 leveldb::Status Database::DeleteFromDatabase (
-        leveldb::WriteOptions* options
+        const leveldb::WriteOptions& options
       , leveldb::Slice key
     ) {
-  return db->Delete(*options, key);
+  return db->Delete(options, key);
 }
 
 leveldb::Status Database::WriteBatchToDatabase (
-        leveldb::WriteOptions* options
+        const leveldb::WriteOptions& options
       , leveldb::WriteBatch* batch
     ) {
-  return db->Write(*options, batch);
+  return db->Write(options, batch);
 }
 
 uint64_t Database::ApproximateSizeFromDatabase (const leveldb::Range* range) {
@@ -91,8 +88,8 @@ void Database::GetPropertyFromDatabase (
   db->GetProperty(property, value);
 }
 
-leveldb::Iterator* Database::NewIterator (leveldb::ReadOptions* options) {
-  return db->NewIterator(*options);
+leveldb::Iterator* Database::NewIterator (const leveldb::ReadOptions& options) {
+  return db->NewIterator(options);
 }
 
 const leveldb::Snapshot* Database::NewSnapshot () {
@@ -110,23 +107,16 @@ void Database::ReleaseIterator (uint32_t id) {
   // if there is a pending CloseWorker it means that we're waiting for
   // iterators to end before we can close them
   iterators.erase(id);
-  if (iterators.empty() && pendingCloseWorker != NULL) {
-    Nan::AsyncQueueWorker((AsyncWorker*)pendingCloseWorker);
-    pendingCloseWorker = NULL;
+  if (iterators.empty() && pendingCloseWorker != nullptr) {
+    Nan::AsyncQueueWorker(reinterpret_cast<AsyncWorker*>(pendingCloseWorker));
+    pendingCloseWorker = nullptr;
   }
 }
 
 void Database::CloseDatabase () {
-  delete db;
-  db = NULL;
-  if (blockCache) {
-    delete blockCache;
-    blockCache = NULL;
-  }
-  if (filterPolicy) {
-    delete filterPolicy;
-    filterPolicy = NULL;
-  }
+  db.reset();
+  blockCache.reset();
+  filterPolicy.reset();
 }
 
 /* V8 exposed functions *****************************/
@@ -201,14 +191,14 @@ NAN_METHOD(Database::Open) {
   );
   uint32_t maxFileSize = UInt32OptionValue(optionsObj, "maxFileSize", 2 << 20);
 
-  database->blockCache = leveldb::NewLRUCache(cacheSize);
-  database->filterPolicy = leveldb::NewBloomFilterPolicy(10);
+  database->blockCache.reset(leveldb::NewLRUCache(cacheSize));
+  database->filterPolicy.reset(leveldb::NewBloomFilterPolicy(10));
 
   OpenWorker* worker = new OpenWorker(
       database
     , new Nan::Callback(callback)
-    , database->blockCache
-    , database->filterPolicy
+    , database->blockCache.get()
+    , database->filterPolicy.get()
     , createIfMissing
     , errorIfExists
     , compression
@@ -395,7 +385,7 @@ NAN_METHOD(Database::Batch) {
     worker->SaveToPersistent("database", _this);
     Nan::AsyncQueueWorker(worker);
   } else {
-    LD_RUN_CALLBACK("leveldown:db.batch", callback, 0, NULL);
+    LD_RUN_CALLBACK("leveldown:db.batch", callback, 0, nullptr);
   }
 }
 

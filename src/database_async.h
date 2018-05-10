@@ -30,18 +30,16 @@ public:
              uint32_t blockRestartInterval,
              uint32_t maxFileSize);
 
-  virtual ~OpenWorker();
   virtual void Execute();
 
 private:
-  leveldb::Options* options;
+  leveldb::Options options;
 };
 
 class CloseWorker : public AsyncWorker {
 public:
   CloseWorker(Database *database, Nan::Callback *callback);
 
-  virtual ~CloseWorker() {}
   virtual void Execute();
   virtual void WorkComplete();
 };
@@ -52,8 +50,6 @@ public:
            Nan::Callback *callback,
            const char *resource_name,
            leveldb::Slice key);
-
-  virtual ~IOWorker() {}
 
 protected:
   leveldb::Slice key;
@@ -67,13 +63,12 @@ public:
              bool asBuffer,
              bool fillCache);
 
-  virtual ~ReadWorker();
   virtual void Execute();
   virtual void HandleOKCallback();
 
 private:
   bool asBuffer;
-  leveldb::ReadOptions* options;
+  leveldb::ReadOptions options;
   std::string value;
 };
 
@@ -85,11 +80,10 @@ public:
                bool sync,
                const char *resource_name = "leveldown:db.del");
 
-  virtual ~DeleteWorker();
   virtual void Execute();
 
 protected:
-  leveldb::WriteOptions* options;
+  leveldb::WriteOptions options;
 };
 
 class WriteWorker : public DeleteWorker {
@@ -100,7 +94,6 @@ public:
               leveldb::Slice value,
               bool sync);
 
-  virtual ~WriteWorker() {}
   virtual void Execute();
 
 private:
@@ -114,12 +107,11 @@ public:
               leveldb::WriteBatch* batch,
               bool sync);
 
-  virtual ~BatchWorker();
   virtual void Execute();
 
 private:
-  leveldb::WriteOptions* options;
-  leveldb::WriteBatch* batch;
+  leveldb::WriteOptions options;
+  std::unique_ptr<leveldb::WriteBatch> batch;
 };
 
 class ApproximateSizeWorker : public AsyncWorker {
@@ -129,7 +121,6 @@ public:
                         leveldb::Slice start,
                         leveldb::Slice end);
 
-  virtual ~ApproximateSizeWorker() {}
   virtual void Execute();
   virtual void HandleOKCallback();
 
@@ -145,7 +136,6 @@ public:
                      leveldb::Slice start,
                      leveldb::Slice end);
 
-  virtual ~CompactRangeWorker() {}
   virtual void Execute();
   virtual void HandleOKCallback();
 

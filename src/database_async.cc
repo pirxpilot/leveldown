@@ -32,24 +32,19 @@ OpenWorker::OpenWorker(Database *database,
                        uint32_t maxFileSize)
 : AsyncWorker(database, callback, "leveldown:db.open")
 {
-  options = new leveldb::Options();
-  options->block_cache            = blockCache;
-  options->filter_policy          = filterPolicy;
-  options->create_if_missing      = createIfMissing;
-  options->error_if_exists        = errorIfExists;
-  options->compression            = compression
+  options.block_cache            = blockCache;
+  options.filter_policy          = filterPolicy;
+  options.create_if_missing      = createIfMissing;
+  options.error_if_exists        = errorIfExists;
+  options.compression            = compression
       ? leveldb::kSnappyCompression
       : leveldb::kNoCompression;
-  options->write_buffer_size      = writeBufferSize;
-  options->block_size             = blockSize;
-  options->max_open_files         = maxOpenFiles;
-  options->block_restart_interval = blockRestartInterval;
-  options->max_file_size          = maxFileSize;
+  options.write_buffer_size      = writeBufferSize;
+  options.block_size             = blockSize;
+  options.max_open_files         = maxOpenFiles;
+  options.block_restart_interval = blockRestartInterval;
+  options.max_file_size          = maxFileSize;
 };
-
-OpenWorker::~OpenWorker() {
-  delete options;
-}
 
 void OpenWorker::Execute() {
   SetStatus(database->OpenDatabase(options));
@@ -69,7 +64,7 @@ void CloseWorker::WorkComplete() {
   Nan::HandleScope scope;
   HandleOKCallback();
   delete callback;
-  callback = NULL;
+  callback = nullptr;
 }
 
 /** IO WORKER (abstract) **/
@@ -92,15 +87,8 @@ ReadWorker::ReadWorker(Database *database,
   : IOWorker(database, callback, "leveldown:db.get", key),
     asBuffer(asBuffer)
 {
-  Nan::HandleScope scope;
-
-  options = new leveldb::ReadOptions();
-  options->fill_cache = fillCache;
+  options.fill_cache = fillCache;
 };
-
-ReadWorker::~ReadWorker() {
-  delete options;
-}
 
 void ReadWorker::Execute() {
   SetStatus(database->GetFromDatabase(options, key, value));
@@ -136,13 +124,8 @@ DeleteWorker::DeleteWorker(Database *database,
 {
   Nan::HandleScope scope;
 
-  options = new leveldb::WriteOptions();
-  options->sync = sync;
+  options.sync = sync;
 };
-
-DeleteWorker::~DeleteWorker() {
-  delete options;
-}
 
 void DeleteWorker::Execute() {
   SetStatus(database->DeleteFromDatabase(options, key));
@@ -172,17 +155,11 @@ BatchWorker::BatchWorker(Database *database,
                          bool sync)
   : AsyncWorker(database, callback, "leveldown:db.batch"), batch(batch)
 {
-  options = new leveldb::WriteOptions();
-  options->sync = sync;
+  options.sync = sync;
 };
 
-BatchWorker::~BatchWorker() {
-  delete batch;
-  delete options;
-}
-
 void BatchWorker::Execute() {
-  SetStatus(database->WriteBatchToDatabase(options, batch));
+  SetStatus(database->WriteBatchToDatabase(options, batch.get()));
 }
 
 /** APPROXIMATE SIZE WORKER **/
@@ -216,13 +193,10 @@ CompactRangeWorker::CompactRangeWorker(Database *database,
                                        Nan::Callback *callback,
                                        leveldb::Slice start,
                                        leveldb::Slice end)
-  : AsyncWorker(database, callback, "leveldown:db.compactRange")
-{
-  Nan::HandleScope scope;
-
-  rangeStart = start;
-  rangeEnd = end;
-};
+  : AsyncWorker(database, callback, "leveldown:db.compactRange"),
+    rangeStart(start),
+    rangeEnd(end)
+{}
 
 void CompactRangeWorker::Execute() {
   database->CompactRangeFromDatabase(&rangeStart, &rangeEnd);
