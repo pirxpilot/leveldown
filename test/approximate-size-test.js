@@ -88,7 +88,7 @@ test('test approximateSize()', function (t) {
   }).join('')
 
   db.batch(Array.apply(null, Array(10)).map(function (x, i) {
-    return { type: 'put', key: 'foo' + i, value: data }
+    return { type: 'put', key: Buffer.from('foo' + i), value: Buffer.from(data) }
   }), function (err) {
     t.error(err)
 
@@ -100,7 +100,7 @@ test('test approximateSize()', function (t) {
       db.open(function (err) {
         t.error(err)
 
-        db.approximateSize('!', '~', function (err, size) {
+        db.approximateSize(Buffer.from('!'), Buffer.from('~'), function (err, size) {
           t.error(err)
 
           t.equal(typeof size, 'number')

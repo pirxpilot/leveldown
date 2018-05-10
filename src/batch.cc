@@ -12,19 +12,12 @@ namespace leveldown {
 static Nan::Persistent<v8::FunctionTemplate> batch_constructor;
 
 Batch::Batch (leveldown::Database* database, bool sync) : database(database) {
-  options = new leveldb::WriteOptions();
-  options->sync = sync;
-  batch = new leveldb::WriteBatch();
+  options.sync = sync;
   hasData = false;
 }
 
-Batch::~Batch () {
-  delete options;
-  delete batch;
-}
-
 leveldb::Status Batch::Write () {
-  return database->WriteBatchToDatabase(options, batch);
+  return database->WriteBatchToDatabase(options, &batch);
 }
 
 void Batch::Init () {
@@ -86,17 +79,12 @@ NAN_METHOD(Batch::Put) {
   Batch* batch = ObjectWrap::Unwrap<Batch>(info.Holder());
   v8::Local<v8::Function> callback; // purely for the error macros
 
-  v8::Local<v8::Value> keyBuffer = info[0];
-  v8::Local<v8::Value> valueBuffer = info[1];
-  LD_STRING_OR_BUFFER_TO_SLICE(key, keyBuffer, key)
-  LD_STRING_OR_BUFFER_TO_SLICE(value, valueBuffer, value)
+  leveldb::Slice key = MakeSlice(info[0]);
+  leveldb::Slice value = MakeSlice(info[1]);
 
-  batch->batch->Put(key, value);
+  batch->batch.Put(key, value);
   if (!batch->hasData)
     batch->hasData = true;
-
-  DisposeStringOrBufferFromSlice(keyBuffer, key);
-  DisposeStringOrBufferFromSlice(valueBuffer, value);
 
   info.GetReturnValue().Set(info.Holder());
 }
@@ -106,14 +94,11 @@ NAN_METHOD(Batch::Del) {
 
   v8::Local<v8::Function> callback; // purely for the error macros
 
-  v8::Local<v8::Value> keyBuffer = info[0];
-  LD_STRING_OR_BUFFER_TO_SLICE(key, keyBuffer, key)
+  leveldb::Slice key = MakeSlice(info[0]);
 
-  batch->batch->Delete(key);
+  batch->batch.Delete(key);
   if (!batch->hasData)
     batch->hasData = true;
-
-  DisposeStringOrBufferFromSlice(keyBuffer, key);
 
   info.GetReturnValue().Set(info.Holder());
 }
@@ -121,7 +106,7 @@ NAN_METHOD(Batch::Del) {
 NAN_METHOD(Batch::Clear) {
   Batch* batch = ObjectWrap::Unwrap<Batch>(info.Holder());
 
-  batch->batch->Clear();
+  batch->batch.Clear();
   batch->hasData = false;
 
   info.GetReturnValue().Set(info.Holder());

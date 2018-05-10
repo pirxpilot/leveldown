@@ -30,18 +30,16 @@ public:
              uint32_t blockRestartInterval,
              uint32_t maxFileSize);
 
-  virtual ~OpenWorker();
   virtual void Execute();
 
 private:
-  leveldb::Options* options;
+  leveldb::Options options;
 };
 
 class CloseWorker : public AsyncWorker {
 public:
   CloseWorker(Database *database, Nan::Callback *callback);
 
-  virtual ~CloseWorker() {}
   virtual void Execute();
   virtual void WorkComplete();
 };
@@ -51,11 +49,7 @@ public:
   IOWorker(Database *database,
            Nan::Callback *callback,
            const char *resource_name,
-           leveldb::Slice key,
-           v8::Local<v8::Object> &keyHandle);
-
-  virtual ~IOWorker() {}
-  virtual void WorkComplete();
+           leveldb::Slice key);
 
 protected:
   leveldb::Slice key;
@@ -67,17 +61,30 @@ public:
              Nan::Callback *callback,
              leveldb::Slice key,
              bool asBuffer,
-             bool fillCache,
-             v8::Local<v8::Object> &keyHandle);
+             bool fillCache);
 
-  virtual ~ReadWorker();
   virtual void Execute();
   virtual void HandleOKCallback();
 
 private:
   bool asBuffer;
-  leveldb::ReadOptions* options;
+  leveldb::ReadOptions options;
   std::string value;
+};
+
+class ReadManyWorker : public AsyncWorker {
+public:
+  ReadManyWorker(Database *database,
+                 Nan::Callback *callback,
+                 std::vector<leveldb::Slice> &&keys);
+
+  virtual void Execute();
+  virtual void HandleOKCallback();
+
+private:
+  leveldb::ReadOptions options;
+  const std::vector<leveldb::Slice> keys;
+  std::vector<std::string> values;
 };
 
 class DeleteWorker : public IOWorker {
@@ -86,14 +93,12 @@ public:
                Nan::Callback *callback,
                leveldb::Slice key,
                bool sync,
-               v8::Local<v8::Object> &keyHandle,
                const char *resource_name = "leveldown:db.del");
 
-  virtual ~DeleteWorker();
   virtual void Execute();
 
 protected:
-  leveldb::WriteOptions* options;
+  leveldb::WriteOptions options;
 };
 
 class WriteWorker : public DeleteWorker {
@@ -102,13 +107,9 @@ public:
               Nan::Callback *callback,
               leveldb::Slice key,
               leveldb::Slice value,
-              bool sync,
-              v8::Local<v8::Object> &keyHandle,
-              v8::Local<v8::Object> &valueHandle);
+              bool sync);
 
-  virtual ~WriteWorker() {}
   virtual void Execute();
-  virtual void WorkComplete();
 
 private:
   leveldb::Slice value;
@@ -121,12 +122,11 @@ public:
               leveldb::WriteBatch* batch,
               bool sync);
 
-  virtual ~BatchWorker();
   virtual void Execute();
 
 private:
-  leveldb::WriteOptions* options;
-  leveldb::WriteBatch* batch;
+  leveldb::WriteOptions options;
+  std::unique_ptr<leveldb::WriteBatch> batch;
 };
 
 class ApproximateSizeWorker : public AsyncWorker {
@@ -134,14 +134,10 @@ public:
   ApproximateSizeWorker(Database *database,
                         Nan::Callback *callback,
                         leveldb::Slice start,
-                        leveldb::Slice end,
-                        v8::Local<v8::Object> &startHandle,
-                        v8::Local<v8::Object> &endHandle);
+                        leveldb::Slice end);
 
-  virtual ~ApproximateSizeWorker() {}
   virtual void Execute();
   virtual void HandleOKCallback();
-  virtual void WorkComplete();
 
   private:
     leveldb::Range range;
@@ -153,14 +149,10 @@ public:
   CompactRangeWorker(Database *database,
                      Nan::Callback *callback,
                      leveldb::Slice start,
-                     leveldb::Slice end,
-                     v8::Local<v8::Object> &startHandle,
-                     v8::Local<v8::Object> &endHandle);
+                     leveldb::Slice end);
 
-  virtual ~CompactRangeWorker() {}
   virtual void Execute();
   virtual void HandleOKCallback();
-  virtual void WorkComplete();
 
   private:
     leveldb::Slice rangeStart;

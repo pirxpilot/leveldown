@@ -33,8 +33,23 @@ LevelDOWN.prototype._put = function (key, value, options, callback) {
 }
 
 
+LevelDOWN.prototype.putMany = function (keysAndValues, options, callback) {
+  this.binding.putMany(keysAndValues, options, callback)
+}
+
+
 LevelDOWN.prototype._get = function (key, options, callback) {
   this.binding.get(key, options, callback)
+}
+
+LevelDOWN.prototype.getMany = function (keys, options, callback) {
+  if (typeof options === 'function') { callback = options }
+
+  if (typeof callback !== 'function') {
+    throw new Error('open() requires a callback argument')
+  }
+
+  this.binding.getMany(keys, options, callback);
 }
 
 

@@ -33,59 +33,53 @@ struct Reference {
   };
 };
 
-static inline void ClearReferences (std::vector<Reference *> *references) {
-  for (std::vector<Reference *>::iterator it = references->begin()
-      ; it != references->end()
-      ; ) {
-    DisposeStringOrBufferFromSlice((*it)->handle, (*it)->slice);
-    it = references->erase(it);
-  }
-  delete references;
-}
-
 class Database : public Nan::ObjectWrap {
 public:
   static void Init ();
   static v8::Local<v8::Value> NewInstance (v8::Local<v8::String> &location);
 
-  leveldb::Status OpenDatabase (leveldb::Options* options);
+  leveldb::Status OpenDatabase (const leveldb::Options& options);
   leveldb::Status PutToDatabase (
-      leveldb::WriteOptions* options
+      const leveldb::WriteOptions& options
     , leveldb::Slice key
     , leveldb::Slice value
   );
   leveldb::Status GetFromDatabase (
-      leveldb::ReadOptions* options
+      const leveldb::ReadOptions& options
     , leveldb::Slice key
     , std::string& value
   );
+  leveldb::Status GetManyFromDatabase (
+      const leveldb::ReadOptions &options
+    , const std::vector<leveldb::Slice> &keys
+    , std::vector<std::string> &values
+  );
   leveldb::Status DeleteFromDatabase (
-      leveldb::WriteOptions* options
+      const leveldb::WriteOptions& options
     , leveldb::Slice key
   );
   leveldb::Status WriteBatchToDatabase (
-      leveldb::WriteOptions* options
+      const leveldb::WriteOptions& options
     , leveldb::WriteBatch* batch
   );
   uint64_t ApproximateSizeFromDatabase (const leveldb::Range* range);
   void CompactRangeFromDatabase (const leveldb::Slice* start, const leveldb::Slice* end);
   void GetPropertyFromDatabase (const leveldb::Slice& property, std::string* value);
-  leveldb::Iterator* NewIterator (leveldb::ReadOptions* options);
+  leveldb::Iterator* NewIterator (const leveldb::ReadOptions& options);
   const leveldb::Snapshot* NewSnapshot ();
   void ReleaseSnapshot (const leveldb::Snapshot* snapshot);
   void CloseDatabase ();
   void ReleaseIterator (uint32_t id);
 
   Database (const v8::Local<v8::Value>& from);
-  ~Database ();
 
 private:
-  Nan::Utf8String* location;
-  leveldb::DB* db;
+  std::string location;
+  std::unique_ptr<leveldb::DB> db;
   uint32_t currentIteratorId;
   void(*pendingCloseWorker);
-  leveldb::Cache* blockCache;
-  const leveldb::FilterPolicy* filterPolicy;
+  std::unique_ptr<leveldb::Cache> blockCache;
+  std::unique_ptr<const leveldb::FilterPolicy> filterPolicy;
 
   std::map< uint32_t, leveldown::Iterator * > iterators;
 
@@ -96,8 +90,10 @@ private:
   static NAN_METHOD(Open);
   static NAN_METHOD(Close);
   static NAN_METHOD(Put);
+  static NAN_METHOD(PutMany);
   static NAN_METHOD(Delete);
   static NAN_METHOD(Get);
+  static NAN_METHOD(GetMany);
   static NAN_METHOD(Batch);
   static NAN_METHOD(Write);
   static NAN_METHOD(Iterator);

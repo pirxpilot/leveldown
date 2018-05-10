@@ -92,7 +92,7 @@ Iterator::~Iterator () {
 
 bool Iterator::GetIterator () {
   if (dbIterator == NULL) {
-    dbIterator = database->NewIterator(options);
+    dbIterator = database->NewIterator(*options);
 
     if (start != NULL) {
       dbIterator->Seek(*start);

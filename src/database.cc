@@ -22,55 +22,66 @@ namespace leveldown {
 static Nan::Persistent<v8::FunctionTemplate> database_constructor;
 
 Database::Database (const v8::Local<v8::Value>& from)
-  : location(new Nan::Utf8String(from))
-  , db(NULL)
+  : location(*Nan::Utf8String(from))
+    // strange because - inexplicably - *operator is defined by Utf8String to cast to 'const char*'
   , currentIteratorId(0)
-  , pendingCloseWorker(NULL)
-  , blockCache(NULL)
-  , filterPolicy(NULL) {};
-
-Database::~Database () {
-  if (db != NULL)
-    delete db;
-  delete location;
-};
+  , pendingCloseWorker(nullptr)
+{};
 
 /* Calls from worker threads, NO V8 HERE *****************************/
 
 leveldb::Status Database::OpenDatabase (
-        leveldb::Options* options
+        const leveldb::Options& options
     ) {
-  return leveldb::DB::Open(*options, **location, &db);
+
+  leveldb::DB* pdb;
+  auto status = leveldb::DB::Open(options, location, &pdb);
+  db.reset(pdb);
+  return status;
 }
 
 leveldb::Status Database::PutToDatabase (
-        leveldb::WriteOptions* options
+        const leveldb::WriteOptions& options
       , leveldb::Slice key
       , leveldb::Slice value
     ) {
-  return db->Put(*options, key, value);
+  return db->Put(options, key, value);
 }
 
 leveldb::Status Database::GetFromDatabase (
-        leveldb::ReadOptions* options
+        const leveldb::ReadOptions& options
       , leveldb::Slice key
       , std::string& value
     ) {
-  return db->Get(*options, key, &value);
+  return db->Get(options, key, &value);
+}
+
+leveldb::Status Database::GetManyFromDatabase (
+    const leveldb::ReadOptions &options
+  , const std::vector<leveldb::Slice> &keys
+  , std::vector<std::string> &values
+) {
+
+  for (size_t i = 0; i < keys.size(); i++) {
+    auto status = db->Get(options, keys[i], &values[i]);
+    if (!status.ok()) return status;
+  }
+
+  return leveldb::Status::OK();
 }
 
 leveldb::Status Database::DeleteFromDatabase (
-        leveldb::WriteOptions* options
+        const leveldb::WriteOptions& options
       , leveldb::Slice key
     ) {
-  return db->Delete(*options, key);
+  return db->Delete(options, key);
 }
 
 leveldb::Status Database::WriteBatchToDatabase (
-        leveldb::WriteOptions* options
+        const leveldb::WriteOptions& options
       , leveldb::WriteBatch* batch
     ) {
-  return db->Write(*options, batch);
+  return db->Write(options, batch);
 }
 
 uint64_t Database::ApproximateSizeFromDatabase (const leveldb::Range* range) {
@@ -79,7 +90,7 @@ uint64_t Database::ApproximateSizeFromDatabase (const leveldb::Range* range) {
   return size;
 }
 
-void Database::CompactRangeFromDatabase (const leveldb::Slice* start, 
+void Database::CompactRangeFromDatabase (const leveldb::Slice* start,
                                          const leveldb::Slice* end) {
   db->CompactRange(start, end);
 }
@@ -91,8 +102,8 @@ void Database::GetPropertyFromDatabase (
   db->GetProperty(property, value);
 }
 
-leveldb::Iterator* Database::NewIterator (leveldb::ReadOptions* options) {
-  return db->NewIterator(*options);
+leveldb::Iterator* Database::NewIterator (const leveldb::ReadOptions& options) {
+  return db->NewIterator(options);
 }
 
 const leveldb::Snapshot* Database::NewSnapshot () {
@@ -110,23 +121,16 @@ void Database::ReleaseIterator (uint32_t id) {
   // if there is a pending CloseWorker it means that we're waiting for
   // iterators to end before we can close them
   iterators.erase(id);
-  if (iterators.empty() && pendingCloseWorker != NULL) {
-    Nan::AsyncQueueWorker((AsyncWorker*)pendingCloseWorker);
-    pendingCloseWorker = NULL;
+  if (iterators.empty() && pendingCloseWorker != nullptr) {
+    Nan::AsyncQueueWorker(reinterpret_cast<AsyncWorker*>(pendingCloseWorker));
+    pendingCloseWorker = nullptr;
   }
 }
 
 void Database::CloseDatabase () {
-  delete db;
-  db = NULL;
-  if (blockCache) {
-    delete blockCache;
-    blockCache = NULL;
-  }
-  if (filterPolicy) {
-    delete filterPolicy;
-    filterPolicy = NULL;
-  }
+  db.reset();
+  blockCache.reset();
+  filterPolicy.reset();
 }
 
 /* V8 exposed functions *****************************/
@@ -144,7 +148,9 @@ void Database::Init () {
   Nan::SetPrototypeMethod(tpl, "open", Database::Open);
   Nan::SetPrototypeMethod(tpl, "close", Database::Close);
   Nan::SetPrototypeMethod(tpl, "put", Database::Put);
+  Nan::SetPrototypeMethod(tpl, "putMany", Database::PutMany);
   Nan::SetPrototypeMethod(tpl, "get", Database::Get);
+  Nan::SetPrototypeMethod(tpl, "getMany", Database::GetMany);
   Nan::SetPrototypeMethod(tpl, "del", Database::Delete);
   Nan::SetPrototypeMethod(tpl, "batch", Database::Batch);
   Nan::SetPrototypeMethod(tpl, "approximateSize", Database::ApproximateSize);
@@ -201,14 +207,14 @@ NAN_METHOD(Database::Open) {
   );
   uint32_t maxFileSize = UInt32OptionValue(optionsObj, "maxFileSize", 2 << 20);
 
-  database->blockCache = leveldb::NewLRUCache(cacheSize);
-  database->filterPolicy = leveldb::NewBloomFilterPolicy(10);
+  database->blockCache.reset(leveldb::NewLRUCache(cacheSize));
+  database->filterPolicy.reset(leveldb::NewBloomFilterPolicy(10));
 
   OpenWorker* worker = new OpenWorker(
       database
     , new Nan::Callback(callback)
-    , database->blockCache
-    , database->filterPolicy
+    , database->blockCache.get()
+    , database->filterPolicy.get()
     , createIfMissing
     , errorIfExists
     , compression
@@ -278,21 +284,17 @@ NAN_METHOD(Database::Close) {
 NAN_METHOD(Database::Put) {
   LD_METHOD_SETUP_COMMON(put, 2, 3)
 
-  v8::Local<v8::Object> keyHandle = info[0].As<v8::Object>();
-  v8::Local<v8::Object> valueHandle = info[1].As<v8::Object>();
-  LD_STRING_OR_BUFFER_TO_SLICE(key, keyHandle, key);
-  LD_STRING_OR_BUFFER_TO_SLICE(value, valueHandle, value);
+  leveldb::Slice key = MakeSlice(info[0].As<v8::Object>());
+  leveldb::Slice value = MakeSlice(info[1].As<v8::Object>());
 
   bool sync = BooleanOptionValue(optionsObj, "sync");
 
-  WriteWorker* worker  = new WriteWorker(
+  WriteWorker* worker = new WriteWorker(
       database
     , new Nan::Callback(callback)
     , key
     , value
     , sync
-    , keyHandle
-    , valueHandle
   );
 
   // persist to prevent accidental GC
@@ -304,8 +306,7 @@ NAN_METHOD(Database::Put) {
 NAN_METHOD(Database::Get) {
   LD_METHOD_SETUP_COMMON(get, 1, 2)
 
-  v8::Local<v8::Object> keyHandle = info[0].As<v8::Object>();
-  LD_STRING_OR_BUFFER_TO_SLICE(key, keyHandle, key);
+  leveldb::Slice key = MakeSlice(info[0].As<v8::Object>());
 
   bool asBuffer = BooleanOptionValue(optionsObj, "asBuffer", true);
   bool fillCache = BooleanOptionValue(optionsObj, "fillCache", true);
@@ -316,7 +317,6 @@ NAN_METHOD(Database::Get) {
     , key
     , asBuffer
     , fillCache
-    , keyHandle
   );
   // persist to prevent accidental GC
   v8::Local<v8::Object> _this = info.This();
@@ -324,11 +324,35 @@ NAN_METHOD(Database::Get) {
   Nan::AsyncQueueWorker(worker);
 }
 
+NAN_METHOD(Database::GetMany) {
+  LD_METHOD_SETUP_COMMON(get, 1, 2)
+
+  auto array = v8::Local<v8::Array>::Cast(info[0]);
+  const int len = array->Length();
+
+  std::vector<leveldb::Slice> keys;
+  keys.reserve(len);
+
+  for(int i = 0; i < len; i++) {
+    auto obj = v8::Local<v8::Object>::Cast(array->Get(i));
+    keys.push_back(MakeSlice(obj));
+  }
+
+  auto worker = new ReadManyWorker(
+      database
+    , new Nan::Callback(callback)
+    , std::move(keys)
+  );
+  // persist to prevent accidental GC
+  auto _this = info.This();
+  worker->SaveToPersistent("database", _this);
+  Nan::AsyncQueueWorker(worker);
+}
+
 NAN_METHOD(Database::Delete) {
   LD_METHOD_SETUP_COMMON(del, 1, 2)
 
-  v8::Local<v8::Object> keyHandle = info[0].As<v8::Object>();
-  LD_STRING_OR_BUFFER_TO_SLICE(key, keyHandle, key);
+  leveldb::Slice key = MakeSlice(info[0].As<v8::Object>());
 
   bool sync = BooleanOptionValue(optionsObj, "sync");
 
@@ -337,7 +361,6 @@ NAN_METHOD(Database::Delete) {
     , new Nan::Callback(callback)
     , key
     , sync
-    , keyHandle
   );
   // persist to prevent accidental GC
   v8::Local<v8::Object> _this = info.This();
@@ -373,24 +396,20 @@ NAN_METHOD(Database::Batch) {
     v8::Local<v8::Value> type = obj->Get(Nan::New("type").ToLocalChecked());
 
     if (type->StrictEquals(Nan::New("del").ToLocalChecked())) {
-      LD_STRING_OR_BUFFER_TO_SLICE(key, keyBuffer, key)
+      leveldb::Slice key = MakeSlice(keyBuffer);
 
       batch->Delete(key);
       if (!hasData)
         hasData = true;
-
-      DisposeStringOrBufferFromSlice(keyBuffer, key);
     } else if (type->StrictEquals(Nan::New("put").ToLocalChecked())) {
       v8::Local<v8::Value> valueBuffer = obj->Get(Nan::New("value").ToLocalChecked());
 
-      LD_STRING_OR_BUFFER_TO_SLICE(key, keyBuffer, key)
-      LD_STRING_OR_BUFFER_TO_SLICE(value, valueBuffer, value)
+      leveldb::Slice key = MakeSlice(keyBuffer);
+      leveldb::Slice value = MakeSlice(valueBuffer);
+
       batch->Put(key, value);
       if (!hasData)
         hasData = true;
-
-      DisposeStringOrBufferFromSlice(keyBuffer, key);
-      DisposeStringOrBufferFromSlice(valueBuffer, value);
     }
   }
 
@@ -407,26 +426,57 @@ NAN_METHOD(Database::Batch) {
     worker->SaveToPersistent("database", _this);
     Nan::AsyncQueueWorker(worker);
   } else {
-    LD_RUN_CALLBACK("leveldown:db.batch", callback, 0, NULL);
+    LD_RUN_CALLBACK("leveldown:db.batch", callback, 0, nullptr);
   }
 }
 
+NAN_METHOD(Database::PutMany) {
+  LD_METHOD_SETUP_COMMON(batch, 1, 2);
+
+  bool sync = BooleanOptionValue(optionsObj, "sync");
+
+  auto array = v8::Local<v8::Array>::Cast(info[0]);
+  auto batch = new leveldb::WriteBatch();
+  const auto len = array->Length();
+
+  for (unsigned int i = 0; i < len; i++) {
+    auto key_value = v8::Local<v8::Array>::Cast(array->Get(i));
+
+    leveldb::Slice key = MakeSlice(key_value->Get(0));
+    leveldb::Slice value = MakeSlice(key_value->Get(1));
+
+    batch->Put(key, value);
+  }
+
+  // don't allow an empty batch through
+  if (len > 0) {
+    BatchWorker* worker = new BatchWorker(
+        database
+      , new Nan::Callback(callback)
+      , batch
+      , sync
+    );
+    // persist to prevent accidental GC
+    v8::Local<v8::Object> _this = info.This();
+    worker->SaveToPersistent("database", _this);
+    Nan::AsyncQueueWorker(worker);
+  } else {
+    LD_RUN_CALLBACK("leveldown:db.batch", callback, 0, nullptr);
+  }
+}
+
+
 NAN_METHOD(Database::ApproximateSize) {
-  v8::Local<v8::Object> startHandle = info[0].As<v8::Object>();
-  v8::Local<v8::Object> endHandle = info[1].As<v8::Object>();
+  leveldb::Slice start = MakeSlice(info[0].As<v8::Object>());
+  leveldb::Slice end = MakeSlice(info[1].As<v8::Object>());
 
   LD_METHOD_SETUP_COMMON(approximateSize, -1, 2)
-
-  LD_STRING_OR_BUFFER_TO_SLICE(start, startHandle, start)
-  LD_STRING_OR_BUFFER_TO_SLICE(end, endHandle, end)
 
   ApproximateSizeWorker* worker  = new ApproximateSizeWorker(
       database
     , new Nan::Callback(callback)
     , start
     , end
-    , startHandle
-    , endHandle
   );
   // persist to prevent accidental GC
   v8::Local<v8::Object> _this = info.This();
@@ -435,20 +485,16 @@ NAN_METHOD(Database::ApproximateSize) {
 }
 
 NAN_METHOD(Database::CompactRange) {
-  v8::Local<v8::Object> startHandle = info[0].As<v8::Object>();
-  v8::Local<v8::Object> endHandle = info[1].As<v8::Object>();
+  leveldb::Slice start = MakeSlice(info[0].As<v8::Object>());
+  leveldb::Slice end = MakeSlice(info[1].As<v8::Object>());
 
   LD_METHOD_SETUP_COMMON(compactRange, -1, 2)
-  LD_STRING_OR_BUFFER_TO_SLICE(start, startHandle, start)
-  LD_STRING_OR_BUFFER_TO_SLICE(end, endHandle, end)
 
   CompactRangeWorker* worker  = new CompactRangeWorker(
       database
     , new Nan::Callback(callback)
     , start
     , end
-    , startHandle
-    , endHandle
   );
   // persist to prevent accidental GC
   v8::Local<v8::Object> _this = info.This();
@@ -457,11 +503,7 @@ NAN_METHOD(Database::CompactRange) {
 }
 
 NAN_METHOD(Database::GetProperty) {
-  v8::Local<v8::Value> propertyHandle = info[0].As<v8::Object>();
-  v8::Local<v8::Function> callback; // for LD_STRING_OR_BUFFER_TO_SLICE
-
-  LD_STRING_OR_BUFFER_TO_SLICE(property, propertyHandle, property)
-
+  leveldb::Slice property = MakeSliceFromString(info[0].As<v8::Object>());
   leveldown::Database* database =
       Nan::ObjectWrap::Unwrap<leveldown::Database>(info.This());
 
