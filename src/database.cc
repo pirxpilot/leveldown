@@ -148,6 +148,7 @@ void Database::Init () {
   Nan::SetPrototypeMethod(tpl, "open", Database::Open);
   Nan::SetPrototypeMethod(tpl, "close", Database::Close);
   Nan::SetPrototypeMethod(tpl, "put", Database::Put);
+  Nan::SetPrototypeMethod(tpl, "putMany", Database::PutMany);
   Nan::SetPrototypeMethod(tpl, "get", Database::Get);
   Nan::SetPrototypeMethod(tpl, "getMany", Database::GetMany);
   Nan::SetPrototypeMethod(tpl, "del", Database::Delete);
@@ -428,6 +429,42 @@ NAN_METHOD(Database::Batch) {
     LD_RUN_CALLBACK("leveldown:db.batch", callback, 0, nullptr);
   }
 }
+
+NAN_METHOD(Database::PutMany) {
+  LD_METHOD_SETUP_COMMON(batch, 1, 2);
+
+  bool sync = BooleanOptionValue(optionsObj, "sync");
+
+  auto array = v8::Local<v8::Array>::Cast(info[0]);
+  auto batch = new leveldb::WriteBatch();
+  const auto len = array->Length();
+
+  for (unsigned int i = 0; i < len; i++) {
+    auto key_value = v8::Local<v8::Array>::Cast(array->Get(i));
+
+    leveldb::Slice key = MakeSlice(key_value->Get(0));
+    leveldb::Slice value = MakeSlice(key_value->Get(1));
+
+    batch->Put(key, value);
+  }
+
+  // don't allow an empty batch through
+  if (len > 0) {
+    BatchWorker* worker = new BatchWorker(
+        database
+      , new Nan::Callback(callback)
+      , batch
+      , sync
+    );
+    // persist to prevent accidental GC
+    v8::Local<v8::Object> _this = info.This();
+    worker->SaveToPersistent("database", _this);
+    Nan::AsyncQueueWorker(worker);
+  } else {
+    LD_RUN_CALLBACK("leveldown:db.batch", callback, 0, nullptr);
+  }
+}
+
 
 NAN_METHOD(Database::ApproximateSize) {
   leveldb::Slice start = MakeSlice(info[0].As<v8::Object>());
