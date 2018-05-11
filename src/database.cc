@@ -51,23 +51,9 @@ leveldb::Status Database::PutToDatabase (
 leveldb::Status Database::GetFromDatabase (
         const leveldb::ReadOptions& options
       , leveldb::Slice key
-      , std::string& value
+      , std::string* value
     ) {
-  return db->Get(options, key, &value);
-}
-
-leveldb::Status Database::GetManyFromDatabase (
-    const leveldb::ReadOptions &options
-  , const std::vector<leveldb::Slice> &keys
-  , std::vector<std::string> &values
-) {
-
-  for (size_t i = 0; i < keys.size(); i++) {
-    auto status = db->Get(options, keys[i], &values[i]);
-    if (!status.ok()) return status;
-  }
-
-  return leveldb::Status::OK();
+  return db->Get(options, key, value);
 }
 
 leveldb::Status Database::DeleteFromDatabase (

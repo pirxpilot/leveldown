@@ -91,7 +91,7 @@ ReadWorker::ReadWorker(Database *database,
 };
 
 void ReadWorker::Execute() {
-  SetStatus(database->GetFromDatabase(options, key, value));
+  SetStatus(database->GetFromDatabase(options, key, &value));
 }
 
 void ReadWorker::HandleOKCallback() {
@@ -116,7 +116,14 @@ void ReadWorker::HandleOKCallback() {
 /** READ MANY WORKER */
 
 void ReadManyWorker::Execute() {
-  SetStatus(database->GetManyFromDatabase(options, keys, values));
+  auto status = leveldb::Status::OK();
+
+  for (size_t i = 0; i < keys.size(); i++) {
+    status = database->GetFromDatabase(options, keys[i], &values[i]);
+    if (!status.ok()) break;
+  }
+
+  SetStatus(status);
 }
 
 void ReadManyWorker::HandleOKCallback() {

@@ -47,12 +47,7 @@ public:
   leveldb::Status GetFromDatabase (
       const leveldb::ReadOptions& options
     , leveldb::Slice key
-    , std::string& value
-  );
-  leveldb::Status GetManyFromDatabase (
-      const leveldb::ReadOptions &options
-    , const std::vector<leveldb::Slice> &keys
-    , std::vector<std::string> &values
+    , std::string* value
   );
   leveldb::Status DeleteFromDatabase (
       const leveldb::WriteOptions& options
