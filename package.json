@@ -59,6 +59,7 @@
   },
   "scripts": {
     "install": "prebuild-install || cmake-js compile",
+    "prebuild": "prebuild --backend cmake-js -t 8.0.0 -t 10.0.0 --strip",
     "test": "tape test/*-test.js | faucet"
   },
   "license": "MIT",
