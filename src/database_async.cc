@@ -131,19 +131,41 @@ void ReadManyWorker::Execute() {
   SetStatus(status);
 }
 
-void ReadManyWorker::HandleOKCallback() {
+void ReadManyWorker::WorkComplete() {
   Nan::HandleScope scope;
 
-  auto array = Nan::New<v8::Array>(values.size());
+  v8::Local<v8::Value> argv[] = { Nan::Null(), Nan::Null(), Nan::Null() };
+  int argv_count = 1;
 
-  for (int i = 0; i < values.size(); i++) {
-    auto value = values[i];
-    auto buffer = Nan::CopyBuffer(value.data(), value.size()).ToLocalChecked();
-    Nan::Set(array, i, buffer);
+  if (!status.ok()) {
+    argv[0] = v8::Exception::Error(Nan::New<v8::String>(ErrorMessage()).ToLocalChecked());
   }
 
-  v8::Local<v8::Value> argv[] = { Nan::Null(), array };
-  callback->Call(2, argv, async_resource);
+  if (status.ok() || status.IsNotFound()) {
+    auto result = Nan::New<v8::Array>(values.size());
+
+    for (int i = 0; i < values.size(); i++) {
+      auto value = values[i];
+      auto buffer = Nan::CopyBuffer(value.data(), value.size()).ToLocalChecked();
+      Nan::Set(result, i, buffer);
+    }
+
+    argv[1] = result;
+    argv_count = 2;
+  }
+
+  if (status.IsNotFound()) {
+    auto result = Nan::New<v8::Array>(missing.size());
+
+    for (int i = 0; i < missing.size(); i++) {
+      Nan::Set(result, i, Nan::New<v8::Number>((double) missing[i]));
+    }
+
+    argv[2] = result;
+    argv_count = 3;
+  }
+
+  callback->Call(argv_count, argv, async_resource);
 }
 
 /** DELETE WORKER **/

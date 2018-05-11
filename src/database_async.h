@@ -82,7 +82,7 @@ public:
     values(keys.size()) {};
 
   virtual void Execute();
-  virtual void HandleOKCallback();
+  virtual void WorkComplete();
 
 private:
   leveldb::ReadOptions options;
