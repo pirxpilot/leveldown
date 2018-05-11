@@ -142,19 +142,14 @@ NAN_METHOD(Database::Close) {
     // the CloseWorker will be invoked once they are all cleaned up
     database->pendingCloseWorker = worker;
 
-    for (
-        std::map< uint32_t, leveldown::Iterator * >::iterator it
-            = database->iterators.begin()
-      ; it != database->iterators.end()
-      ; ++it) {
-
+    for (auto const &it: database->iterators) {
         // for each iterator still open, first check if it's already in
         // the process of ending (ended==true means an async End() is
         // in progress), if not, then we call End() with an empty callback
         // function and wait for it to hit ReleaseIterator() where our
         // CloseWorker will be invoked
 
-        leveldown::Iterator *iterator = it->second;
+        auto const &iterator = it.second;
 
         if (!iterator->ended) {
           v8::Local<v8::Function> end =
