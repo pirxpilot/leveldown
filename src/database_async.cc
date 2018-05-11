@@ -91,7 +91,7 @@ ReadWorker::ReadWorker(Database *database,
 };
 
 void ReadWorker::Execute() {
-  SetStatus(database->GetFromDatabase(options, key, value));
+  SetStatus(database->GetFromDatabase(options, key, &value));
 }
 
 void ReadWorker::HandleOKCallback() {
@@ -115,35 +115,57 @@ void ReadWorker::HandleOKCallback() {
 
 /** READ MANY WORKER */
 
-ReadManyWorker::ReadManyWorker(
-  Database *database,
-  Nan::Callback *callback,
-  std::vector<leveldb::Slice> &&keys
-):
-  AsyncWorker(database, callback, "leveldown:db.getMany"),
-  keys(keys),
-  values(keys.size())
-{
-  options.fill_cache = true;
-};
-
 void ReadManyWorker::Execute() {
-  SetStatus(database->GetManyFromDatabase(options, keys, values));
-}
+  auto status = leveldb::Status::OK();
 
-void ReadManyWorker::HandleOKCallback() {
-  Nan::HandleScope scope;
-
-  auto array = Nan::New<v8::Array>(values.size());
-
-  for (int i = 0; i < values.size(); i++) {
-    auto value = values[i];
-    auto buffer = Nan::CopyBuffer(value.data(), value.size()).ToLocalChecked();
-    Nan::Set(array, i, buffer);
+  for (size_t i = 0; i < keys.size(); i++) {
+    auto last_status = database->GetFromDatabase(options, keys[i], &values[i]);
+    if (last_status.ok()) continue;
+    // not OK...
+    status = last_status;
+    if (!last_status.IsNotFound()) break;
+    // but continue if it was 'not found' error
+    missing.push_back(i);
   }
 
-  v8::Local<v8::Value> argv[] = { Nan::Null(), array };
-  callback->Call(2, argv, async_resource);
+  SetStatus(status);
+}
+
+void ReadManyWorker::WorkComplete() {
+  Nan::HandleScope scope;
+
+  v8::Local<v8::Value> argv[] = { Nan::Null(), Nan::Null(), Nan::Null() };
+  int argv_count = 1;
+
+  if (!status.ok()) {
+    argv[0] = v8::Exception::Error(Nan::New<v8::String>(ErrorMessage()).ToLocalChecked());
+  }
+
+  if (status.ok() || status.IsNotFound()) {
+    auto result = Nan::New<v8::Array>(values.size());
+
+    for (int i = 0; i < values.size(); i++) {
+      auto value = values[i];
+      auto buffer = Nan::CopyBuffer(value.data(), value.size()).ToLocalChecked();
+      Nan::Set(result, i, buffer);
+    }
+
+    argv[1] = result;
+    argv_count = 2;
+  }
+
+  if (status.IsNotFound()) {
+    auto result = Nan::New<v8::Array>(missing.size());
+
+    for (int i = 0; i < missing.size(); i++) {
+      Nan::Set(result, i, Nan::New<v8::Number>((double) missing[i]));
+    }
+
+    argv[2] = result;
+    argv_count = 3;
+  }
+
+  callback->Call(argv_count, argv, async_resource);
 }
 
 /** DELETE WORKER **/

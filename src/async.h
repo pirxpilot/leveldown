@@ -28,7 +28,6 @@ protected:
       SetErrorMessage(status.ToString().c_str());
   }
   Database* database;
-private:
   leveldb::Status status;
 };
 

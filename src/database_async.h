@@ -76,15 +76,19 @@ class ReadManyWorker : public AsyncWorker {
 public:
   ReadManyWorker(Database *database,
                  Nan::Callback *callback,
-                 std::vector<leveldb::Slice> &&keys);
+                 std::vector<leveldb::Slice> &&keys_):
+    AsyncWorker(database, callback, "leveldown:db.getMany"),
+    keys(std::move(keys_)),
+    values(keys.size()) {};
 
   virtual void Execute();
-  virtual void HandleOKCallback();
+  virtual void WorkComplete();
 
 private:
   leveldb::ReadOptions options;
   const std::vector<leveldb::Slice> keys;
   std::vector<std::string> values;
+  std::vector<unsigned int> missing;
 };
 
 class DeleteWorker : public IOWorker {
