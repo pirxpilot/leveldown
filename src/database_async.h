@@ -88,6 +88,7 @@ private:
   leveldb::ReadOptions options;
   const std::vector<leveldb::Slice> keys;
   std::vector<std::string> values;
+  std::vector<unsigned int> missing;
 };
 
 class DeleteWorker : public IOWorker {

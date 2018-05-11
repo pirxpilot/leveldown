@@ -119,8 +119,13 @@ void ReadManyWorker::Execute() {
   auto status = leveldb::Status::OK();
 
   for (size_t i = 0; i < keys.size(); i++) {
-    status = database->GetFromDatabase(options, keys[i], &values[i]);
-    if (!status.ok()) break;
+    auto last_status = database->GetFromDatabase(options, keys[i], &values[i]);
+    if (last_status.ok()) continue;
+    // not OK...
+    status = last_status;
+    if (!last_status.IsNotFound()) break;
+    // but continue if it was 'not found' error
+    missing.push_back(i);
   }
 
   SetStatus(status);
