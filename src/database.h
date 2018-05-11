@@ -38,44 +38,109 @@ public:
   static void Init ();
   static v8::Local<v8::Value> NewInstance (v8::Local<v8::String> &location);
 
-  leveldb::Status OpenDatabase (const leveldb::Options& options);
+  leveldb::Status OpenDatabase (const leveldb::Options& options) {
+    leveldb::DB* pdb;
+    auto status = leveldb::DB::Open(options, location, &pdb);
+    db.reset(pdb);
+    return status;
+  }
+
   leveldb::Status PutToDatabase (
       const leveldb::WriteOptions& options
     , leveldb::Slice key
     , leveldb::Slice value
-  );
+  ) {
+    return db->Put(options, key, value);
+  }
+
   leveldb::Status GetFromDatabase (
       const leveldb::ReadOptions& options
     , leveldb::Slice key
     , std::string* value
-  );
+  ) {
+    return db->Get(options, key, value);
+  }
+
   leveldb::Status DeleteFromDatabase (
       const leveldb::WriteOptions& options
     , leveldb::Slice key
-  );
+  ) {
+    return db->Delete(options, key);
+  }
+
   leveldb::Status WriteBatchToDatabase (
       const leveldb::WriteOptions& options
     , leveldb::WriteBatch* batch
-  );
-  uint64_t ApproximateSizeFromDatabase (const leveldb::Range* range);
-  void CompactRangeFromDatabase (const leveldb::Slice* start, const leveldb::Slice* end);
-  void GetPropertyFromDatabase (const leveldb::Slice& property, std::string* value);
-  leveldb::Iterator* NewIterator (const leveldb::ReadOptions& options);
-  const leveldb::Snapshot* NewSnapshot ();
-  void ReleaseSnapshot (const leveldb::Snapshot* snapshot);
-  void CloseDatabase ();
-  void ReleaseIterator (uint32_t id);
+  ) {
+    return db->Write(options, batch);
+  }
 
-  Database (const v8::Local<v8::Value>& from);
+  uint64_t ApproximateSizeFromDatabase (const leveldb::Range* range) {
+    uint64_t size;
+    db->GetApproximateSizes(range, 1, &size);
+    return size;
+  }
+
+  void CompactRangeFromDatabase (
+      const leveldb::Slice* start
+    , const leveldb::Slice* end
+  ) {
+    db->CompactRange(start, end);
+  }
+
+  void GetPropertyFromDatabase (
+      const leveldb::Slice& property
+    , std::string* value
+  ) {
+    db->GetProperty(property, value);
+  }
+
+  leveldb::Iterator* NewIterator (const leveldb::ReadOptions& options) {
+    return db->NewIterator(options);
+  }
+
+  const leveldb::Snapshot* NewSnapshot () {
+    return db->GetSnapshot();
+  }
+
+  void ReleaseSnapshot (const leveldb::Snapshot* snapshot) {
+    return db->ReleaseSnapshot(snapshot);
+  }
+
+  void CloseDatabase () {
+    db.reset();
+    blockCache.reset();
+    filterPolicy.reset();
+  }
+
+  // called each time an Iterator is End()ed, in the main thread
+  // we have to remove our reference to it and if it's the last iterator
+  // we have to invoke a pending CloseWorker if there is one
+  // if there is a pending CloseWorker it means that we're waiting for
+  // iterators to end before we can close them
+  void ReleaseIterator (uint32_t id) {
+    iterators.erase(id);
+    if (iterators.empty() && pendingCloseWorker != nullptr) {
+      Nan::AsyncQueueWorker(pendingCloseWorker);
+      pendingCloseWorker = nullptr;
+    }
+  }
 
 private:
+  Database (const char* location)
+    : location(location)
+    , currentIteratorId(0)
+    , pendingCloseWorker(nullptr)
+  {}
+
+
   std::string location;
   std::unique_ptr<leveldb::DB> db;
   uint32_t currentIteratorId;
-  void(*pendingCloseWorker);
   std::unique_ptr<leveldb::Cache> blockCache;
   std::unique_ptr<const leveldb::FilterPolicy> filterPolicy;
 
+  Nan::AsyncWorker *pendingCloseWorker;
   std::map< uint32_t, leveldown::Iterator * > iterators;
 
   static void WriteDoing(uv_work_t *req);

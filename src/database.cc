@@ -21,104 +21,6 @@ namespace leveldown {
 
 static Nan::Persistent<v8::FunctionTemplate> database_constructor;
 
-Database::Database (const v8::Local<v8::Value>& from)
-  : location(*Nan::Utf8String(from))
-    // strange because - inexplicably - *operator is defined by Utf8String to cast to 'const char*'
-  , currentIteratorId(0)
-  , pendingCloseWorker(nullptr)
-{};
-
-/* Calls from worker threads, NO V8 HERE *****************************/
-
-leveldb::Status Database::OpenDatabase (
-        const leveldb::Options& options
-    ) {
-
-  leveldb::DB* pdb;
-  auto status = leveldb::DB::Open(options, location, &pdb);
-  db.reset(pdb);
-  return status;
-}
-
-leveldb::Status Database::PutToDatabase (
-        const leveldb::WriteOptions& options
-      , leveldb::Slice key
-      , leveldb::Slice value
-    ) {
-  return db->Put(options, key, value);
-}
-
-leveldb::Status Database::GetFromDatabase (
-        const leveldb::ReadOptions& options
-      , leveldb::Slice key
-      , std::string* value
-    ) {
-  return db->Get(options, key, value);
-}
-
-leveldb::Status Database::DeleteFromDatabase (
-        const leveldb::WriteOptions& options
-      , leveldb::Slice key
-    ) {
-  return db->Delete(options, key);
-}
-
-leveldb::Status Database::WriteBatchToDatabase (
-        const leveldb::WriteOptions& options
-      , leveldb::WriteBatch* batch
-    ) {
-  return db->Write(options, batch);
-}
-
-uint64_t Database::ApproximateSizeFromDatabase (const leveldb::Range* range) {
-  uint64_t size;
-  db->GetApproximateSizes(range, 1, &size);
-  return size;
-}
-
-void Database::CompactRangeFromDatabase (const leveldb::Slice* start,
-                                         const leveldb::Slice* end) {
-  db->CompactRange(start, end);
-}
-
-void Database::GetPropertyFromDatabase (
-      const leveldb::Slice& property
-    , std::string* value) {
-
-  db->GetProperty(property, value);
-}
-
-leveldb::Iterator* Database::NewIterator (const leveldb::ReadOptions& options) {
-  return db->NewIterator(options);
-}
-
-const leveldb::Snapshot* Database::NewSnapshot () {
-  return db->GetSnapshot();
-}
-
-void Database::ReleaseSnapshot (const leveldb::Snapshot* snapshot) {
-  return db->ReleaseSnapshot(snapshot);
-}
-
-void Database::ReleaseIterator (uint32_t id) {
-  // called each time an Iterator is End()ed, in the main thread
-  // we have to remove our reference to it and if it's the last iterator
-  // we have to invoke a pending CloseWorker if there is one
-  // if there is a pending CloseWorker it means that we're waiting for
-  // iterators to end before we can close them
-  iterators.erase(id);
-  if (iterators.empty() && pendingCloseWorker != nullptr) {
-    Nan::AsyncQueueWorker(reinterpret_cast<AsyncWorker*>(pendingCloseWorker));
-    pendingCloseWorker = nullptr;
-  }
-}
-
-void Database::CloseDatabase () {
-  db.reset();
-  blockCache.reset();
-  filterPolicy.reset();
-}
-
 /* V8 exposed functions *****************************/
 
 NAN_METHOD(LevelDOWN) {
@@ -146,7 +48,10 @@ void Database::Init () {
 }
 
 NAN_METHOD(Database::New) {
-  Database* obj = new Database(info[0]);
+  // strange because - inexplicably - *operator is defined by Utf8String to cast to 'const char*'
+  const char* location = *Nan::Utf8String(info[0]);
+
+  Database* obj = new Database(location);
   obj->Wrap(info.This());
 
   info.GetReturnValue().Set(info.This());
